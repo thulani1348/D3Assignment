@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script type="text/javascript" src="d3.v4.js"></script>
+    <title>D3_UK_cities_map</title>
+    <style>
+      body {
+        background: white;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      .country {
+        fill: rgb(90, 95, 171);
+        stroke: #f8f3f2;
+        stroke-width: 0.5;
+      }
+
+      .towns {
+        /* fill: rgba(154, 244, 20, 0.74);
+            stroke: rgb(208, 208, 208); */
+        stroke-width: 1px;
+        /* background-image: url(map.png); */
+        background-repeat: no-repeat;
+        width: 25px;
+        /* height: 20px; */
+      }
+
+      .city_name {
+        fill: black;
+        font-size: 12px;
+      }
+
+      .refresh-button {
+        background-color: rgb(74, 45, 153);
+        color: rgb(17, 15, 15);
+        font-weight: bold;
+        border: none;
+        height: 30px;
+        width: 100px;
+        border-radius: 2px;
+        cursor: pointer;
+        margin-right: 8px;
+        transition: opacity 0.15s;
+        align-items: center;
+      }
+
+      .refresh-button:hover {
+        background-color: #70ea80;
+      }
+
+      .refresh-button:active {
+        opacity: 0.5;
+      }
+
+      .refresh-button-container {
+        display: flex;
+        justify-content: center;
+      }
+
+      .slider-container {
+        margin: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 10px;
+        margin-top: auto; /* Push to the bottom */
+      }
+
+      .slider-label {
+        font-size: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <div class="refresh-button-container">
+      <button class="refresh-button" id="reloadButton">Refresh</button>
+    </div>
+
+    <div class="slider-container">
+      <label class="slider-label" for="citySlider"
+        >Number of Cities to Display: <span id="sliderValue">20</span></label
+      >
+      <input type="range" id="citySlider" min="1" max="20" value="20" />
+    </div>
+
+    <script>
+      var margin = { top: 0, left: 0, right: 0, bottom: 0 },
+        height = 570,
+        width = 950;
+
+      var svg = d3
+        .select("#map")
+        .append("svg")
+        .attr("height", height)
+        .attr("width", width)
+        .append("g")
+        .attr("id", "svg_id");
+
+      var prjctn = d3
+        .geoNaturalEarth1()
+        .translate([width / 2, height / 2])
+        .scale(2500)
+        .center([-13, 55]);
+      var path = d3.geoPath().projection(prjctn);
+
+      var citySlider = document.getElementById("citySlider");
+      var sliderValue = document.getElementById("sliderValue");
+
+      // Function to update the slider value display
+      citySlider.oninput = function () {
+        sliderValue.textContent = this.value;
+      };
+
+      // UK MAP
+      d3.json("./gb.json", function (error, data) {
+        console.log(data);
+
+        svg
+          .selectAll(".country")
+          .data(data.features)
+          .enter()
+          .append("path")
+          .attr("class", "country")
+          .attr("d", path)
+          .append("title")
+          .text("Great Britain");
+      });
+
+      svg
+        .append("rect")
+        .attr("width", width)
+        .attr("height", height)
+        .style("fill", "none")
+        .style("stroke", "white")
+        .style("stroke-width", 2);
+
+      // Define the number of cities to display at a time
+      var citiesToShow = 10;
+
+      // Function to load and display cities
+      function loadCities() {
+        // Load the UK cities data
+        d3.json("./Uk_Allcities.json", function (error, data) {
+          if (error) throw error;
+
+          // Shuffle the data randomly
+          shuffleArray(data);
+
+          // Select a subset of the shuffled data based on the slider value
+          var selectedData = data.slice(0, citySlider.value);
+
+          // Create circles for the selected cities
+          var cities = svg
+            .selectAll(".towns")
+            .data(selectedData)
+            .enter()
+            .append("svg:image")
+            .attr("class", "towns")
+            .attr("transform", function (d) {
+              return "translate(" + -20 / 2 + "," + -20 / 2 + ")";
+            })
+            .attr("xlink:href", function (d) {
+              return "map.png";
+            })
+            .attr("r", 10)
+            .attr("x", function (d) {
+              var coords = prjctn([d.lng, d.lat]);
+              return coords[0];
+            })
+            .attr("y", function (d) {
+              var coords = prjctn([d.lng, d.lat]);
+              return coords[1];
+            })
+            .append("title") // Add a title element for the tooltip
+            .text(function (d) {
+              return (
+                "City: " +
+                d.Town +
+                "\nPopulation: " +
+                d.Population +
+                "\nLatitude: " +
+                d.lat +
+                "\nLongitude: " +
+                d.lng +
+                "\nCounty: " +
+                d.County
+              );
+            });
+
+          // Create labels for the selected cities
+          svg
+            .selectAll(".city_name")
+            .data(selectedData)
+            .enter()
+            .append("text")
+            .attr("class", "city_name")
+            .attr("x", function (d) {
+              var coords = prjctn([d.lng, d.lat, d.Town]);
+              return coords[0];
+            })
+            .attr("y", function (d) {
+              var coords = prjctn([d.lng, d.lat, d.Town]);
+              return coords[1];
+            })
+            .text(function (d) {
+              return d.Town;
+            })
+            .attr("dx", "15")
+            .attr("dy", "10");
+        });
+      }
+
+      // Function to shuffle an array randomly (Fisher-Yates algorithm)
+      function shuffleArray(array) {
+        for (var i = array.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = array[i];
+          array[i] = array[j];
+          array[j] = temp;
+        }
+      }
+
+      // Load and display cities when the page loads
+      loadCities();
+
+      // Add an event listener to the "Reload" button
+      document
+        .getElementById("reloadButton")
+        .addEventListener("click", function () {
+          // Clear existing cities and reload a new set
+          svg.selectAll(".towns").remove();
+          svg.selectAll(".city_name").remove();
+          loadCities();
+        });
+    </script>
+  </body>
+</html>
